@@ -8,6 +8,13 @@ export type Player = {
   isSpectator: boolean
 }
 
+export type StoryRecord = {
+  title: string
+  votes: Record<string, CardValue | null>
+  average: string | null
+  consensus: boolean
+}
+
 export type Room = {
   id: string
   name: string
@@ -15,7 +22,9 @@ export type Room = {
   players: Player[]
   currentStory: string
   phase: 'voting' | 'revealed'
-  votes: Record<string, CardValue | null> // playerId -> vote value
+  votes: Record<string, CardValue | null>
+  stories: StoryRecord[]
+  storyCount: number
 }
 
 // What clients see during voting — votes are hidden, only presence indicated

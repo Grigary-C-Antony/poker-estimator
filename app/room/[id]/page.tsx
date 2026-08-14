@@ -9,6 +9,7 @@ import PokerCard from '@/components/PokerCard'
 import PlayerList from '@/components/PlayerList'
 import VoteResults from '@/components/VoteResults'
 import PokerTable from '@/components/PokerTable'
+import StoryHistory from '@/components/StoryHistory'
 
 type AnyRoom = ClientRoom | RevealedRoom
 
@@ -284,6 +285,12 @@ export default function RoomPage() {
           <button className="copy-btn" onClick={copyRoomLink} title="Copy link">🔗</button>
         </div>
 
+        {isModerator && room?.phase === 'revealed' && (
+          <button className="btn--new-round" onClick={handleReset} title="Start next story">
+            ↺ New round
+          </button>
+        )}
+
         <button className="btn btn--ghost btn--sm" onClick={handleLeave}>
           Leave
         </button>
@@ -310,11 +317,6 @@ export default function RoomPage() {
         {isModerator && room?.phase === 'voting' && (
           <button className="btn btn--secondary btn--sm" onClick={handleReveal}>
             Reveal votes
-          </button>
-        )}
-        {isModerator && room?.phase === 'revealed' && (
-          <button className="btn btn--primary btn--sm" onClick={handleReset}>
-            New round
           </button>
         )}
         {!isModerator && room?.phase === 'voting' && (
@@ -367,7 +369,7 @@ export default function RoomPage() {
                 })}
               </div>
               {room?.phase === 'voting' && (
-                <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
                   {myVote === true
                     ? 'Vote submitted — you can change it until votes are revealed.'
                     : 'Votes are hidden until the moderator reveals them.'}
@@ -395,6 +397,11 @@ export default function RoomPage() {
               phase={room.phase}
               currentPlayerId={playerId ?? ''}
             />
+          )}
+
+          {/* Story history */}
+          {room && room.stories.length > 0 && (
+            <StoryHistory stories={room.stories} />
           )}
 
           {/* Invite section */}

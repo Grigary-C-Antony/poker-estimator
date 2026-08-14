@@ -392,6 +392,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-align: center;
   color: var(--text-muted);
   margin: 0 0 16px;
 }
@@ -400,12 +401,13 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  justify-content: center;
 }
 
 .poker-card {
   position: relative;
-  width: 70px;
-  height: 100px;
+  width: 90px;
+  height: 130px;
   background: var(--surface);
   border: 2px solid var(--border);
   border-radius: 8px;
@@ -438,7 +440,7 @@ body {
 
 .poker-card__corner {
   position: absolute;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
 }
@@ -459,7 +461,7 @@ body {
 }
 
 .poker-card__center {
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text-primary);
@@ -470,7 +472,7 @@ body {
 }
 
 .poker-card--special .poker-card__center {
-  font-size: 22px;
+  font-size: 28px;
 }
 
 /* ── Player list ───────────────────────────────────────── */
@@ -1176,6 +1178,126 @@ body {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
+}
+
+/* ── Story history (sidebar) ───────────────────────────── */
+.story-history {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.story-history__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.story-history__count {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.story-history__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.story-item {
+  padding: 7px 8px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.1s;
+}
+
+.story-item:hover {
+  background: var(--bg);
+}
+
+.story-item__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.story-item__name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.story-item__badge {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #BBF7D0;
+  margin-top: 1px;
+}
+
+.story-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.story-item__avg {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.story-item__avg--none {
+  font-family: inherit;
+  font-style: italic;
+}
+
+/* ── New round button (header) ─────────────────────────── */
+.btn--new-round {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: border-color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.btn--new-round:hover {
+  border-color: var(--border-hover);
+  background: var(--bg);
 }
 
 /* ── Responsive ────────────────────────────────────────── */

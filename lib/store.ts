@@ -30,6 +30,8 @@ export function createRoom(name: string, moderatorId: string, moderatorName: str
     currentStory: '',
     phase: 'voting',
     votes: { [moderatorId]: null },
+    stories: [],
+    storyCount: 0,
   }
 
   rooms.set(id, room)

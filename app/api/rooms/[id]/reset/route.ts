@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRoom, sanitizeRoom } from '@/lib/store'
 import { pusherServer, getRoomChannel } from '@/lib/pusher-server'
+import type { CardValue, StoryRecord } from '@/lib/types'
 
 export async function POST(
   req: NextRequest,
@@ -15,9 +16,38 @@ export async function POST(
     return NextResponse.json({ error: 'Only the moderator can reset' }, { status: 403 })
   }
 
+  // Archive the completed round
+  const voters = room.players.filter((p) => !p.isSpectator)
+  const castVotes = voters
+    .map((p) => room.votes[p.id])
+    .filter((v): v is CardValue => v !== null && v !== undefined)
+
+  const numericVotes = castVotes.filter((v) => /^\d+$/.test(v)).map(Number)
+  const average =
+    numericVotes.length > 0
+      ? (() => {
+          const avg = numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
+          return avg % 1 === 0 ? String(avg) : avg.toFixed(1)
+        })()
+      : null
+  const consensus = new Set(castVotes).size === 1 && castVotes.length === voters.length
+
+  room.storyCount += 1
+  const storyTitle = room.currentStory.trim() || `Story ${room.storyCount}`
+
+  const record: StoryRecord = {
+    title: storyTitle,
+    votes: { ...room.votes },
+    average,
+    consensus,
+  }
+  room.stories.push(record)
+
+  // Reset round
   room.phase = 'voting'
-  for (const id of Object.keys(room.votes)) {
-    room.votes[id] = null
+  room.currentStory = ''
+  for (const pid of Object.keys(room.votes)) {
+    room.votes[pid] = null
   }
 
   await pusherServer.trigger(getRoomChannel(room.id), 'room-updated', {

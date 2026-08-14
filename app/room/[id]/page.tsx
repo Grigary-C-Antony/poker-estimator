@@ -39,6 +39,7 @@ export default function RoomPage() {
   const [showFirstStoryModal, setShowFirstStoryModal] = useState(false)
   const [firstStoryInput, setFirstStoryInput] = useState('')
   const [savingFirstStory, setSavingFirstStory] = useState(false)
+  const [mySelectedVote, setMySelectedVote] = useState<CardValue | null>(null)
   const storyTimer = useRef<NodeJS.Timeout | null>(null)
   const toastTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -110,7 +111,12 @@ export default function RoomPage() {
 
     channel.bind('room-updated', ({ room: updatedRoom }: { room: ClientRoom }) => {
       if (!mounted) return
-      setRoom(updatedRoom)
+      setRoom((prev) => {
+        if (prev?.phase === 'revealed' && updatedRoom.phase === 'voting') {
+          setMySelectedVote(null)
+        }
+        return updatedRoom
+      })
       setStoryDraft(updatedRoom.currentStory)
     })
 
@@ -165,6 +171,7 @@ export default function RoomPage() {
     if (!playerId || !room) return
     if (room.phase === 'revealed') return
 
+    setMySelectedVote(value)
     await fetch(`/api/rooms/${roomId}/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -399,7 +406,7 @@ export default function RoomPage() {
                 {CARD_SET.map((value) => {
                   const isSelected = isRevealed(room!)
                     ? (room as RevealedRoom).votes[playerId!] === value
-                    : false
+                    : mySelectedVote === value
 
                   return (
                     <PokerCard

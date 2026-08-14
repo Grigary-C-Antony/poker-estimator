@@ -1,6 +1,6 @@
 export type CardValue = '½' | '0' | '1' | '2' | '3' | '5' | '8' | '13' | '21' | '40' | '?' | '☕'
 
-export const CARD_SET: CardValue[] = ['½', '0', '1', '2', '3', '5', '8', '13', '21', '40', '?', '☕']
+export const CARD_SET: CardValue[] = ['0', '½', '1', '2', '3', '5', '8', '13', '21', '40', '?', '☕']
 
 export type Player = {
   id: string

@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@upstash/redis": "^1.38.2",
     "next": "^15.3.3",
     "pusher": "^5.2.0",

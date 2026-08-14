@@ -11,7 +11,7 @@ export async function POST(
   const room = getRoom(id.toUpperCase())
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
-  const { playerId } = await req.json()
+  const { playerId, nextStory = '' } = await req.json()
   if (playerId !== room.moderatorId) {
     return NextResponse.json({ error: 'Only the moderator can reset' }, { status: 403 })
   }
@@ -45,7 +45,7 @@ export async function POST(
 
   // Reset round
   room.phase = 'voting'
-  room.currentStory = ''
+  room.currentStory = nextStory.trim()
   for (const pid of Object.keys(room.votes)) {
     room.votes[pid] = null
   }

@@ -1283,7 +1283,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: var(--radius);
   font-size: 12px;
   font-weight: 600;
@@ -1291,13 +1291,59 @@ body {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-primary);
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
   white-space: nowrap;
 }
 
 .btn--new-round:hover {
   border-color: var(--border-hover);
   background: var(--bg);
+}
+
+/* Highlighted state — shown when votes are revealed */
+.btn--new-round-active {
+  background: #ECFDF5;
+  border-color: #6EE7B7;
+  color: #065F46;
+  box-shadow: 0 0 0 3px rgba(110, 231, 183, 0.25);
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.btn--new-round-active:hover {
+  background: #D1FAE5;
+  border-color: #34D399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.3);
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(110, 231, 183, 0.25); }
+  50%       { box-shadow: 0 0 0 5px rgba(110, 231, 183, 0.12); }
+}
+
+/* Submit button inside new round modal */
+.btn--new-round-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #6EE7B7;
+  background: #ECFDF5;
+  color: #065F46;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.btn--new-round-submit:hover:not(:disabled) {
+  background: #D1FAE5;
+  border-color: #34D399;
+}
+
+.btn--new-round-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Responsive ────────────────────────────────────────── */

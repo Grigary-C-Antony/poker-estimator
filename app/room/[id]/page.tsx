@@ -33,6 +33,9 @@ export default function RoomPage() {
   const [joinNameInput, setJoinNameInput] = useState('')
   const [isSpectator, setIsSpectator] = useState(false)
   const [joiningModal, setJoiningModal] = useState(false)
+  const [showNewRoundModal, setShowNewRoundModal] = useState(false)
+  const [nextStoryInput, setNextStoryInput] = useState('')
+  const [resetting, setResetting] = useState(false)
   const storyTimer = useRef<NodeJS.Timeout | null>(null)
   const toastTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -166,13 +169,22 @@ export default function RoomPage() {
     })
   }
 
-  async function handleReset() {
+  async function handleReset(nextStory = '') {
     if (!playerId) return
+    setResetting(true)
     await fetch(`/api/rooms/${roomId}/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerId }),
+      body: JSON.stringify({ playerId, nextStory }),
     })
+    setResetting(false)
+  }
+
+  async function handleNewRoundSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await handleReset(nextStoryInput.trim())
+    setNextStoryInput('')
+    setShowNewRoundModal(false)
   }
 
   function handleStoryChange(value: string) {
@@ -286,7 +298,11 @@ export default function RoomPage() {
         </div>
 
         {isModerator && room?.phase === 'revealed' && (
-          <button className="btn--new-round" onClick={handleReset} title="Start next story">
+          <button
+            className="btn--new-round btn--new-round-active"
+            onClick={() => { setNextStoryInput(''); setShowNewRoundModal(true) }}
+            title="Start next story"
+          >
             ↺ New round
           </button>
         )}
@@ -458,6 +474,48 @@ export default function RoomPage() {
               >
                 {joiningModal ? 'Joining…' : 'Join room'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New round modal */}
+      {showNewRoundModal && (
+        <div className="modal-overlay" onClick={() => setShowNewRoundModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Start new round</h2>
+            <p className="modal__sub">Optionally name the next story before voting begins.</p>
+            <form onSubmit={handleNewRoundSubmit}>
+              <div className="form-group">
+                <label className="form-label">Story / ticket title</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  placeholder={`Story ${(room?.storyCount ?? 0) + 1}`}
+                  value={nextStoryInput}
+                  onChange={(e) => setNextStoryInput(e.target.value)}
+                  maxLength={120}
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => setShowNewRoundModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn--new-round-submit"
+                  style={{ flex: 1 }}
+                  disabled={resetting}
+                >
+                  {resetting ? 'Starting…' : 'Start round'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -39,8 +39,8 @@ export default function HomePage() {
           moderatorName: creatorName.trim(),
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to create room')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as any).error ?? 'Failed to create room')
 
       const roomId = data.room.id
       localStorage.setItem(
@@ -65,8 +65,8 @@ export default function HomePage() {
       // Check room exists first
       const check = await fetch(`/api/rooms/${code}`)
       if (!check.ok) {
-        const d = await check.json()
-        throw new Error(d.error ?? 'Room not found')
+        const d = await check.json().catch(() => ({}))
+        throw new Error((d as any).error ?? 'Room not found')
       }
 
       const playerId = generatePlayerId()
@@ -79,8 +79,8 @@ export default function HomePage() {
           isSpectator: false,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to join')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as any).error ?? 'Failed to join')
 
       const roomId = data.room.id
       localStorage.setItem(

@@ -5,12 +5,14 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const room = getRoom(id.toUpperCase())
-  if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
+  try {
+    const { id } = await params
+    const room = getRoom(id.toUpperCase())
+    if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
-  if (room.phase === 'revealed') {
-    return NextResponse.json({ room })
+    return NextResponse.json({ room: room.phase === 'revealed' ? room : sanitizeRoom(room) })
+  } catch (err: any) {
+    console.error('[GET /api/rooms/[id]]', err)
+    return NextResponse.json({ error: err.message ?? 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json({ room: sanitizeRoom(room) })
 }

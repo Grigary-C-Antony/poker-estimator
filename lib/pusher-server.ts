@@ -19,3 +19,12 @@ export const pusherServer: Pusher =
 export function getRoomChannel(roomId: string) {
   return `room-${roomId}`
 }
+
+/** Trigger a Pusher event without crashing the route if Pusher is unreachable */
+export async function safeTrigger(channel: string, event: string, data: unknown) {
+  try {
+    await pusherServer.trigger(channel, event, data)
+  } catch (err) {
+    console.error(`[Pusher] trigger failed — ${channel}/${event}:`, err)
+  }
+}

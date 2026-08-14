@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const room = getRoom(id.toUpperCase())
+    const room = await getRoom(id.toUpperCase())
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
     return NextResponse.json({ room: room.phase === 'revealed' ? room : sanitizeRoom(room) })

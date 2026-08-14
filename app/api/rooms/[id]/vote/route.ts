@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRoom, sanitizeRoom } from '@/lib/store'
+import { getRoom, saveRoom, sanitizeRoom } from '@/lib/store'
 import { safeTrigger, getRoomChannel } from '@/lib/pusher-server'
 import type { CardValue } from '@/lib/types'
 import { CARD_SET } from '@/lib/types'
@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const room = getRoom(id.toUpperCase())
+    const room = await getRoom(id.toUpperCase())
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
     if (room.phase === 'revealed') return NextResponse.json({ error: 'Voting is closed' }, { status: 400 })
 
@@ -23,6 +23,7 @@ export async function POST(
     }
 
     room.votes[playerId] = vote as CardValue
+    await saveRoom(room)
     await safeTrigger(getRoomChannel(room.id), 'room-updated', { room: sanitizeRoom(room) })
 
     return NextResponse.json({ ok: true })

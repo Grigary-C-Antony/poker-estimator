@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRoom, sanitizeRoom } from '@/lib/store'
+import { getRoom, saveRoom, sanitizeRoom } from '@/lib/store'
 import { safeTrigger, getRoomChannel } from '@/lib/pusher-server'
 
 export async function POST(
@@ -8,7 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const room = getRoom(id.toUpperCase())
+    const room = await getRoom(id.toUpperCase())
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
     const { playerId, story } = await req.json()
@@ -17,6 +17,7 @@ export async function POST(
     }
 
     room.currentStory = story ?? ''
+    await saveRoom(room)
     await safeTrigger(getRoomChannel(room.id), 'room-updated', { room: sanitizeRoom(room) })
 
     return NextResponse.json({ ok: true })

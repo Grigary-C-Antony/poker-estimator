@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRoom } from '@/lib/store'
+import { getRoom, saveRoom } from '@/lib/store'
 import { safeTrigger, getRoomChannel } from '@/lib/pusher-server'
 
 export async function POST(
@@ -8,7 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const room = getRoom(id.toUpperCase())
+    const room = await getRoom(id.toUpperCase())
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
     const { playerId } = await req.json()
@@ -17,6 +17,7 @@ export async function POST(
     }
 
     room.phase = 'revealed'
+    await saveRoom(room)
     await safeTrigger(getRoomChannel(room.id), 'votes-revealed', { room })
 
     return NextResponse.json({ room })

@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
-    const room = createRoom(roomName.trim(), moderatorId, moderatorName.trim())
+    const room = await createRoom(roomName.trim(), moderatorId, moderatorName.trim())
     await safeTrigger(getRoomChannel(room.id), 'room-updated', { room: sanitizeRoom(room) })
 
     return NextResponse.json({ room: sanitizeRoom(room) })

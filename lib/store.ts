@@ -1,63 +1,46 @@
+import { neon } from '@neondatabase/serverless'
 import type { Room, ClientRoom } from './types'
 
-// ── Redis (production) ───────────────────────────────────
-// Only loaded when UPSTASH env vars are present.
-// Falls back to in-memory for local dev without Upstash.
+const sql = neon(process.env.DATABASE_URL!)
 
-const PREFIX = 'poker:room:'
-const TTL = 60 * 60 * 24 // 24 hours
-
-function isRedisConfigured() {
-  const url = process.env.UPSTASH_REDIS_REST_URL ?? ''
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? ''
-  return url.startsWith('https://') && token.length > 0
+async function ensureTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS poker_rooms (
+      id TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
 }
 
-let _redis: import('@upstash/redis').Redis | null = null
-
-async function getRedis() {
-  if (!isRedisConfigured()) return null
-  if (!_redis) {
-    const { Redis } = await import('@upstash/redis')
-    _redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    })
+let tableReady = false
+async function db() {
+  if (!tableReady) {
+    await ensureTable()
+    tableReady = true
   }
-  return _redis
+  return sql
 }
-
-// ── In-memory fallback (local dev) ──────────────────────
-declare global {
-  // eslint-disable-next-line no-var
-  var __poker_rooms: Map<string, Room> | undefined
-}
-const memStore: Map<string, Room> =
-  global.__poker_rooms ?? (global.__poker_rooms = new Map())
-
-// ── Public API ───────────────────────────────────────────
 
 export async function getRoom(id: string): Promise<Room | null> {
-  const redis = await getRedis()
-  if (redis) {
-    return (await redis.get<Room>(`${PREFIX}${id}`)) ?? null
-  }
-  return memStore.get(id) ?? null
+  const q = await db()
+  const rows = await q`SELECT data FROM poker_rooms WHERE id = ${id}`
+  return rows.length > 0 ? (rows[0].data as Room) : null
 }
 
 export async function saveRoom(room: Room): Promise<void> {
-  const redis = await getRedis()
-  if (redis) {
-    await redis.setex(`${PREFIX}${room.id}`, TTL, JSON.stringify(room))
-  } else {
-    memStore.set(room.id, room)
-  }
+  const q = await db()
+  await q`
+    INSERT INTO poker_rooms (id, data, updated_at)
+    VALUES (${room.id}, ${JSON.stringify(room)}, NOW())
+    ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+  `
 }
 
 async function roomExists(id: string): Promise<boolean> {
-  const redis = await getRedis()
-  if (redis) return (await redis.exists(`${PREFIX}${id}`)) > 0
-  return memStore.has(id)
+  const q = await db()
+  const rows = await q`SELECT 1 FROM poker_rooms WHERE id = ${id}`
+  return rows.length > 0
 }
 
 function generateRoomId(): string {

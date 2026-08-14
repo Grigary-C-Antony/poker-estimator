@@ -106,10 +106,24 @@ export default function HomePage() {
       <main className="home-page">
         <div style={{ width: '100%', maxWidth: 720, display: 'flex', flexDirection: 'column', gap: 0, alignItems: 'center' }}>
           <div className="home-hero">
+            {/* Decorative card fan */}
+            <div className="hero-card-preview">
+              <div className="preview-card">1</div>
+              <div className="preview-card">3</div>
+              <div className="preview-card preview-card--dark">5</div>
+              <div className="preview-card">8</div>
+              <div className="preview-card">13</div>
+            </div>
             <h1 className="home-hero__title">Planning poker, simplified.</h1>
             <p className="home-hero__sub">
-              Create a room, invite your team, vote on stories — no login required.
+              Async-friendly estimation for engineering teams. No login, no friction.
             </p>
+            <div className="feature-pills">
+              <span className="pill"><span className="pill__dot" />Real-time sync</span>
+              <span className="pill">No login required</span>
+              <span className="pill">Fibonacci cards</span>
+              <span className="pill">Free forever</span>
+            </div>
           </div>
 
           <div className="home-grid">
@@ -199,6 +213,25 @@ export default function HomePage() {
                   {joining ? 'Joining…' : 'Join room'}
                 </button>
               </form>
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div className="how-it-works">
+            <div className="step">
+              <div className="step__num">1</div>
+              <div className="step__title">Create a room</div>
+              <div className="step__desc">Give your session a name and get a 6-character code instantly. No account needed.</div>
+            </div>
+            <div className="step">
+              <div className="step__num">2</div>
+              <div className="step__title">Invite your team</div>
+              <div className="step__desc">Share the code or link. Teammates join with just a name — spectators welcome too.</div>
+            </div>
+            <div className="step">
+              <div className="step__num">3</div>
+              <div className="step__title">Vote and reveal</div>
+              <div className="step__desc">Everyone picks a card. Moderator reveals all votes simultaneously to avoid anchoring.</div>
             </div>
           </div>
         </div>

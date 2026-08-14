@@ -8,6 +8,7 @@ import type { CardValue, ClientRoom, RevealedRoom } from '@/lib/types'
 import PokerCard from '@/components/PokerCard'
 import PlayerList from '@/components/PlayerList'
 import VoteResults from '@/components/VoteResults'
+import PokerTable from '@/components/PokerTable'
 
 type AnyRoom = ClientRoom | RevealedRoom
 
@@ -289,12 +290,23 @@ export default function RoomPage() {
       </header>
 
       {/* Controls bar */}
-      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', padding: '10px 24px', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: 'var(--text-secondary)', marginRight: 8 }}>
-          {room?.name}
-        </span>
+      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', padding: '8px 24px', display: 'flex', gap: 8, alignItems: 'center', minHeight: 44 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 12, color: room?.phase === 'voting' ? 'var(--text-secondary)' : 'var(--success)',
+            fontWeight: 500, padding: '3px 10px', borderRadius: 20,
+            border: '1px solid var(--border)', background: 'var(--bg)',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+              background: room?.phase === 'voting' ? '#F59E0B' : 'var(--success)',
+              animation: room?.phase === 'voting' ? 'pulse 1.8s ease-in-out infinite' : 'none',
+            }} />
+            {room?.phase === 'voting' ? 'Voting in progress' : 'Votes revealed'}
+          </span>
+        </div>
         <span style={{ flex: 1 }} />
-
         {isModerator && room?.phase === 'voting' && (
           <button className="btn btn--secondary btn--sm" onClick={handleReveal}>
             Reveal votes
@@ -305,9 +317,9 @@ export default function RoomPage() {
             New round
           </button>
         )}
-        {!isModerator && (
+        {!isModerator && room?.phase === 'voting' && (
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {room?.phase === 'voting' ? 'Waiting for moderator to reveal…' : ''}
+            Waiting for moderator to reveal…
           </span>
         )}
       </div>
@@ -315,21 +327,15 @@ export default function RoomPage() {
       {/* Main room layout */}
       <div className="room-layout">
         <main className="room-main">
-          {/* Voting status */}
-          {room?.phase === 'voting' && (
-            <div className="phase-banner">
-              <span className="phase-banner__text">
-                {isCurrentSpectator
-                  ? 'You are spectating this round'
-                  : myVote === true
-                  ? 'Your vote is in — waiting for others'
-                  : 'Pick a card to cast your vote'}
-              </span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {Object.values(room.votes).filter(Boolean).length} /{' '}
-                {room.players.filter((p) => !p.isSpectator).length} voted
-              </div>
-            </div>
+
+          {/* Poker table — always visible */}
+          {room && (
+            <PokerTable
+              players={room.players}
+              votes={room.votes as Record<string, any>}
+              phase={room.phase}
+              currentPlayerId={playerId ?? ''}
+            />
           )}
 
           {/* Revealed results */}
@@ -340,7 +346,9 @@ export default function RoomPage() {
           {/* Voting cards */}
           {!isCurrentSpectator && (
             <div>
-              <p className="cards-section__title">Your vote</p>
+              <p className="cards-section__title">
+                {room?.phase === 'revealed' ? 'Your vote was' : 'Pick your card'}
+              </p>
               <div className="cards-grid">
                 {CARD_SET.map((value) => {
                   const isSelected = isRevealed(room!)
@@ -358,6 +366,21 @@ export default function RoomPage() {
                   )
                 })}
               </div>
+              {room?.phase === 'voting' && (
+                <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                  {myVote === true
+                    ? 'Vote submitted — you can change it until votes are revealed.'
+                    : 'Votes are hidden until the moderator reveals them.'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Spectator empty state */}
+          {isCurrentSpectator && room?.phase === 'voting' && (
+            <div className="waiting-hint">
+              <span className="waiting-hint__dot" />
+              You&rsquo;re spectating — sit back while the team votes.
             </div>
           )}
         </main>

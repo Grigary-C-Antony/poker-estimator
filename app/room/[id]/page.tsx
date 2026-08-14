@@ -188,6 +188,16 @@ export default function RoomPage() {
     })
   }
 
+  async function handleRevote() {
+    if (!playerId) return
+    await fetch(`/api/rooms/${roomId}/revote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId }),
+    })
+    setMySelectedVote(null)
+  }
+
   async function handleReset(nextStory = '') {
     if (!playerId) return
     setResetting(true)
@@ -366,8 +376,18 @@ export default function RoomPage() {
         </div>
         <span style={{ flex: 1 }} />
         {isModerator && room?.phase === 'voting' && (
-          <button className="btn btn--secondary btn--sm" onClick={handleReveal}>
-            Reveal votes
+          <>
+            <button className="btn btn--ghost btn--sm" onClick={handleRevote}>
+              Reset votes
+            </button>
+            <button className="btn btn--secondary btn--sm" onClick={handleReveal}>
+              Reveal votes
+            </button>
+          </>
+        )}
+        {isModerator && room?.phase === 'revealed' && (
+          <button className="btn btn--ghost btn--sm" onClick={handleRevote}>
+            Re-vote same story
           </button>
         )}
         {!isModerator && room?.phase === 'voting' && (

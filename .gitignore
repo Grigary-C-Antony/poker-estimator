@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment — never commit secrets
+.env.local
+.env*.local
+
+# Build artifacts
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Claude Code local settings
+.claude/
+
+# Misc
+.DS_Store
+*.pem
+npm-debug.log*
+.vercel

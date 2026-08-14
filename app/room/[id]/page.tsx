@@ -400,7 +400,7 @@ export default function RoomPage() {
           )}
 
           {/* Story history */}
-          {room && room.stories.length > 0 && (
+          {room && (room.stories?.length ?? 0) > 0 && (
             <StoryHistory stories={room.stories} />
           )}
 

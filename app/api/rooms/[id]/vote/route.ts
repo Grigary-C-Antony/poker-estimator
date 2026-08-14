@@ -6,9 +6,10 @@ import { CARD_SET } from '@/lib/types'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const room = getRoom(params.id.toUpperCase())
+  const { id } = await params
+  const room = getRoom(id.toUpperCase())
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
   if (room.phase === 'revealed') {
     return NextResponse.json({ error: 'Voting is closed' }, { status: 400 })

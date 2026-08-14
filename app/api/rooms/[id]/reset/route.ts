@@ -4,9 +4,10 @@ import { pusherServer, getRoomChannel } from '@/lib/pusher-server'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const room = getRoom(params.id.toUpperCase())
+  const { id } = await params
+  const room = getRoom(id.toUpperCase())
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
   const { playerId } = await req.json()

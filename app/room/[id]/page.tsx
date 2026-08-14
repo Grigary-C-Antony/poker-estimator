@@ -36,6 +36,9 @@ export default function RoomPage() {
   const [showNewRoundModal, setShowNewRoundModal] = useState(false)
   const [nextStoryInput, setNextStoryInput] = useState('')
   const [resetting, setResetting] = useState(false)
+  const [showFirstStoryModal, setShowFirstStoryModal] = useState(false)
+  const [firstStoryInput, setFirstStoryInput] = useState('')
+  const [savingFirstStory, setSavingFirstStory] = useState(false)
   const storyTimer = useRef<NodeJS.Timeout | null>(null)
   const toastTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -80,7 +83,16 @@ export default function RoomPage() {
         if (raw) {
           const { playerId: pid } = JSON.parse(raw)
           const inRoom = data.room.players.some((p: any) => p.id === pid)
-          if (!inRoom) setShowJoinModal(true)
+          if (!inRoom) {
+            setShowJoinModal(true)
+          } else if (
+            pid === data.room.moderatorId &&
+            data.room.storyCount === 0 &&
+            !data.room.currentStory
+          ) {
+            // Brand new room — prompt moderator for first story
+            setShowFirstStoryModal(true)
+          }
         } else {
           setShowJoinModal(true)
         }
@@ -178,6 +190,22 @@ export default function RoomPage() {
       body: JSON.stringify({ playerId, nextStory }),
     })
     setResetting(false)
+  }
+
+  async function handleFirstStorySubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const title = firstStoryInput.trim()
+    if (!title || !playerId) { setShowFirstStoryModal(false); return }
+    setSavingFirstStory(true)
+    await fetch(`/api/rooms/${roomId}/story`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId, story: title }),
+    })
+    setStoryDraft(title)
+    setFirstStoryInput('')
+    setSavingFirstStory(false)
+    setShowFirstStoryModal(false)
   }
 
   async function handleNewRoundSubmit(e: React.FormEvent) {
@@ -474,6 +502,48 @@ export default function RoomPage() {
               >
                 {joiningModal ? 'Joining…' : 'Join room'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* First story modal */}
+      {showFirstStoryModal && (
+        <div className="modal-overlay" onClick={() => setShowFirstStoryModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Name your first story</h2>
+            <p className="modal__sub">What are you estimating? You can skip and add it later.</p>
+            <form onSubmit={handleFirstStorySubmit}>
+              <div className="form-group">
+                <label className="form-label">Story / ticket title</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  placeholder="e.g. JIRA-101 User login"
+                  value={firstStoryInput}
+                  onChange={(e) => setFirstStoryInput(e.target.value)}
+                  maxLength={120}
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => setShowFirstStoryModal(false)}
+                >
+                  Skip
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn--new-round-submit"
+                  style={{ flex: 1 }}
+                  disabled={savingFirstStory || !firstStoryInput.trim()}
+                >
+                  {savingFirstStory ? 'Saving…' : 'Start voting'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

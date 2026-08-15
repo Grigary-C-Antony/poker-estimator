@@ -1,15 +1,19 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+
+function capFirst(s: string) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s }
 import { useParams, useRouter } from 'next/navigation'
 import { getPusherClient } from '@/lib/pusher-client'
 import { CARD_SET } from '@/lib/types'
 import type { CardValue, ClientRoom, RevealedRoom } from '@/lib/types'
+import { getIdentity, saveIdentity } from '@/lib/identity'
 import PokerCard from '@/components/PokerCard'
 import PlayerList from '@/components/PlayerList'
 import VoteResults from '@/components/VoteResults'
 import PokerTable from '@/components/PokerTable'
 import StoryHistory from '@/components/StoryHistory'
+import ThemeToggle from '@/components/ThemeToggle'
 
 type AnyRoom = ClientRoom | RevealedRoom
 
@@ -36,12 +40,15 @@ export default function RoomPage() {
   const [showNewRoundModal, setShowNewRoundModal] = useState(false)
   const [nextStoryInput, setNextStoryInput] = useState('')
   const [resetting, setResetting] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showFirstStoryModal, setShowFirstStoryModal] = useState(false)
   const [firstStoryInput, setFirstStoryInput] = useState('')
   const [savingFirstStory, setSavingFirstStory] = useState(false)
   const [mySelectedVote, setMySelectedVote] = useState<CardValue | null>(null)
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
   const storyTimer = useRef<NodeJS.Timeout | null>(null)
   const toastTimer = useRef<NodeJS.Timeout | null>(null)
+  const countdownRef = useRef<NodeJS.Timeout | null>(null)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -79,12 +86,27 @@ export default function RoomPage() {
         setStoryDraft(data.room.currentStory)
         setLoading(false)
 
+        // Restore persisted vote if still in same round
+        const rawSession = localStorage.getItem(`poker_session_${roomId}`)
+        if (rawSession && data.room.phase === 'voting') {
+          const { playerId: pid } = JSON.parse(rawSession)
+          const rawVote = localStorage.getItem(`poker_vote_${roomId}`)
+          if (rawVote) {
+            const { value, storyCount } = JSON.parse(rawVote)
+            if (storyCount === data.room.storyCount && data.room.votes[pid] === true) {
+              setMySelectedVote(value)
+            }
+          }
+        }
+
         // Check if current player is in the room
         const raw = localStorage.getItem(`poker_session_${roomId}`)
         if (raw) {
           const { playerId: pid } = JSON.parse(raw)
           const inRoom = data.room.players.some((p: any) => p.id === pid)
           if (!inRoom) {
+            const id = getIdentity()
+            if (id?.playerName) setJoinNameInput(id.playerName)
             setShowJoinModal(true)
           } else if (
             pid === data.room.moderatorId &&
@@ -95,6 +117,8 @@ export default function RoomPage() {
             setShowFirstStoryModal(true)
           }
         } else {
+          const id = getIdentity()
+          if (id?.playerName) setJoinNameInput(id.playerName)
           setShowJoinModal(true)
         }
       } catch {
@@ -114,6 +138,7 @@ export default function RoomPage() {
       setRoom((prev) => {
         if (prev?.phase === 'revealed' && updatedRoom.phase === 'voting') {
           setMySelectedVote(null)
+          localStorage.removeItem(`poker_vote_${roomId}`)
         }
         return updatedRoom
       })
@@ -123,6 +148,18 @@ export default function RoomPage() {
     channel.bind('votes-revealed', ({ room: revealedRoom }: { room: RevealedRoom }) => {
       if (!mounted) return
       setRoom(revealedRoom)
+    })
+
+    channel.bind('player-kicked', ({ playerId: kickedId }: { playerId: string }) => {
+      if (!mounted) return
+      const raw = localStorage.getItem(`poker_session_${roomId}`)
+      if (raw) {
+        const { playerId: myId } = JSON.parse(raw)
+        if (myId === kickedId) {
+          localStorage.removeItem(`poker_session_${roomId}`)
+          router.push('/?kicked=1')
+        }
+      }
     })
 
     return () => {
@@ -137,7 +174,7 @@ export default function RoomPage() {
     if (!joinNameInput.trim()) return
     setJoiningModal(true)
 
-    const newId = playerId ?? crypto.randomUUID()
+    const newId = playerId ?? getIdentity()?.playerId ?? crypto.randomUUID()
 
     try {
       const res = await fetch(`/api/rooms/${roomId}/join`, {
@@ -152,12 +189,11 @@ export default function RoomPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      localStorage.setItem(
-        `poker_session_${roomId}`,
-        JSON.stringify({ playerId: newId, playerName: joinNameInput.trim() })
-      )
+      const name = joinNameInput.trim()
+      localStorage.setItem(`poker_session_${roomId}`, JSON.stringify({ playerId: newId, playerName: name }))
+      saveIdentity(newId, name)
       setPlayerId(newId)
-      setPlayerName(joinNameInput.trim())
+      setPlayerName(name)
       setRoom(data.room)
       setShowJoinModal(false)
     } catch (err: any) {
@@ -172,6 +208,7 @@ export default function RoomPage() {
     if (room.phase === 'revealed') return
 
     setMySelectedVote(value)
+    localStorage.setItem(`poker_vote_${roomId}`, JSON.stringify({ value, storyCount: room.storyCount }))
     await fetch(`/api/rooms/${roomId}/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -185,6 +222,47 @@ export default function RoomPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerId }),
+    })
+  }
+
+  // Sync countdown from room.timerEndsAt
+  useEffect(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current)
+    const endsAt = room?.timerEndsAt ?? null
+    if (!endsAt || room?.phase !== 'voting') { setSecondsLeft(null); return }
+    const end = endsAt
+
+    function tick() {
+      const s = Math.max(0, Math.round((end - Date.now()) / 1000))
+      setSecondsLeft(s)
+    }
+    tick()
+    countdownRef.current = setInterval(tick, 500)
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
+  }, [room?.timerEndsAt, room?.phase])
+
+  // Auto-reveal when timer hits 0 (moderator's client only)
+  useEffect(() => {
+    if (secondsLeft === 0 && isModerator && room?.phase === 'voting') {
+      handleReveal()
+    }
+  }, [secondsLeft])
+
+  async function handleStartTimer(duration: number) {
+    if (!playerId) return
+    await fetch(`/api/rooms/${roomId}/timer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId, duration }),
+    })
+  }
+
+  async function handleKick(targetId: string) {
+    if (!playerId) return
+    await fetch(`/api/rooms/${roomId}/kick`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moderatorId: playerId, targetId }),
     })
   }
 
@@ -212,7 +290,7 @@ export default function RoomPage() {
   async function handleFirstStorySubmit(e: React.FormEvent) {
     e.preventDefault()
     const title = firstStoryInput.trim()
-    if (!title || !playerId) { setShowFirstStoryModal(false); return }
+    if (!title || !playerId) return
     setSavingFirstStory(true)
     await fetch(`/api/rooms/${roomId}/story`, {
       method: 'POST',
@@ -305,7 +383,7 @@ export default function RoomPage() {
             The room <code style={{ fontFamily: 'monospace' }}>{roomId}</code> doesn't exist or has expired.
           </p>
           <a href="/" className="btn btn--secondary btn--sm" style={{ marginTop: 8 }}>
-            Back to home
+            Back To Home
           </a>
         </div>
       </>
@@ -318,48 +396,27 @@ export default function RoomPage() {
       <header className="room-header">
         <a href="/" className="room-header__brand">PointSprint</a>
 
-        <div className="room-header__story">
-          {isModerator ? (
-            <input
-              className="room-header__story-input"
-              type="text"
-              placeholder="Story or ticket title (e.g. JIRA-1234)"
-              value={storyDraft}
-              onChange={(e) => handleStoryChange(e.target.value)}
-              maxLength={120}
-            />
-          ) : (
-            <span style={{ padding: '4px 8px', fontSize: 14, fontWeight: 600, color: storyDraft ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-              {storyDraft || (room?.name ?? '')}
-            </span>
-          )}
-        </div>
+        <span style={{ flex: 1 }} />
 
-        <div className="room-code">
-          <span className="room-code__label">Code</span>
-          <span className="room-code__value">{roomId}</span>
-          <button className="copy-btn" onClick={copyRoomCode} title="Copy code">⧉</button>
-          <button className="copy-btn" onClick={copyRoomLink} title="Copy link">🔗</button>
-        </div>
-
-        {isModerator && room?.phase === 'revealed' && (
-          <button
-            className="btn--new-round btn--new-round-active"
-            onClick={() => { setNextStoryInput(''); setShowNewRoundModal(true) }}
-            title="Start next story"
-          >
-            ↺ New round
-          </button>
-        )}
-
-        <button className="btn btn--ghost btn--sm" onClick={handleLeave}>
-          Leave
-        </button>
-      </header>
-
-      {/* Controls bar */}
-      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', padding: '8px 24px', display: 'flex', gap: 8, alignItems: 'center', minHeight: 44 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Status pill */}
+        {!isModerator && room?.phase === 'voting' ? (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 12, fontWeight: 600,
+            color: mySelectedVote !== null ? 'var(--success)' : 'var(--text-secondary)',
+            padding: '3px 10px', borderRadius: 20,
+            border: '1px solid var(--border)', background: 'var(--bg)',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+              background: mySelectedVote !== null ? 'var(--success)' : '#F59E0B',
+              animation: mySelectedVote === null ? 'pulse 1.8s ease-in-out infinite' : 'none',
+            }} />
+            {mySelectedVote !== null
+              ? 'Vote submitted — you can change it until votes are revealed.'
+              : 'Voting in progress — cast your vote now.'}
+          </span>
+        ) : (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 12, color: room?.phase === 'voting' ? 'var(--text-secondary)' : 'var(--success)',
@@ -373,33 +430,82 @@ export default function RoomPage() {
             }} />
             {room?.phase === 'voting' ? 'Voting in progress' : 'Votes revealed'}
           </span>
+        )}
+
+        <ThemeToggle />
+        <button className="btn btn--danger btn--sm" onClick={() => setShowLeaveConfirm(true)}>
+          Leave
+        </button>
+      </header>
+
+      {/* Controls bar — moderator actions only */}
+      {isModerator && (
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', padding: '8px 24px', display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', minHeight: 44 }}>
+          {room?.phase === 'voting' && (
+            <>
+              {secondsLeft !== null && (
+                <span style={{
+                  fontFamily: 'monospace', fontWeight: 700, fontSize: 13,
+                  color: secondsLeft <= 10 ? 'var(--error)' : 'var(--text-primary)',
+                  minWidth: 36, textAlign: 'center',
+                }}>
+                  {secondsLeft}s
+                </span>
+              )}
+              {secondsLeft === null ? (
+                <>
+                  <button className="btn btn--ghost btn--sm" onClick={() => handleStartTimer(30)}>⏱ 30s</button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => handleStartTimer(60)}>⏱ 60s</button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => handleStartTimer(90)}>⏱ 90s</button>
+                </>
+              ) : (
+                <button className="btn btn--ghost btn--sm" onClick={() => handleStartTimer(0)}>✕ Cancel</button>
+              )}
+              <button className="btn btn--ghost btn--sm" onClick={handleRevote}>Reset Votes</button>
+              <button className="btn btn--secondary btn--sm" onClick={handleReveal}>Reveal Votes</button>
+            </>
+          )}
+          {room?.phase === 'revealed' && (
+            <>
+              <button className="btn btn--ghost btn--sm" onClick={handleRevote}>Re-vote</button>
+              <button
+                className="btn--new-round btn--new-round-active"
+                onClick={() => { setNextStoryInput(''); setShowNewRoundModal(true) }}
+              >
+                ↺ New Round
+              </button>
+            </>
+          )}
         </div>
-        <span style={{ flex: 1 }} />
-        {isModerator && room?.phase === 'voting' && (
-          <>
-            <button className="btn btn--ghost btn--sm" onClick={handleRevote}>
-              Reset votes
-            </button>
-            <button className="btn btn--secondary btn--sm" onClick={handleReveal}>
-              Reveal votes
-            </button>
-          </>
-        )}
-        {isModerator && room?.phase === 'revealed' && (
-          <button className="btn btn--ghost btn--sm" onClick={handleRevote}>
-            Re-vote same story
-          </button>
-        )}
-        {!isModerator && room?.phase === 'voting' && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Waiting for moderator to reveal…
-          </span>
-        )}
-      </div>
+      )}
 
       {/* Main room layout */}
       <div className="room-layout">
         <main className="room-main">
+
+          {/* Active story */}
+          <div className="story-banner">
+            <span className="story-banner__label">Estimating</span>
+            {isModerator ? (
+              <input
+                className="story-banner__input"
+                type="text"
+                placeholder="Story title (e.g. JIRA-1234)"
+                value={storyDraft}
+                onChange={(e) => handleStoryChange(capFirst(e.target.value))}
+                maxLength={120}
+              />
+            ) : (
+              <span className="story-banner__title">
+                {storyDraft || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No story set</span>}
+              </span>
+            )}
+          </div>
+
+          {/* Revealed results */}
+          {room?.phase === 'revealed' && isRevealed(room) && (
+            <VoteResults players={room.players} votes={room.votes} />
+          )}
 
           {/* Poker table — always visible */}
           {room && (
@@ -409,11 +515,6 @@ export default function RoomPage() {
               phase={room.phase}
               currentPlayerId={playerId ?? ''}
             />
-          )}
-
-          {/* Revealed results */}
-          {room?.phase === 'revealed' && isRevealed(room) && (
-            <VoteResults players={room.players} votes={room.votes} />
           )}
 
           {/* Voting cards */}
@@ -439,13 +540,6 @@ export default function RoomPage() {
                   )
                 })}
               </div>
-              {room?.phase === 'voting' && (
-                <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                  {myVote === true
-                    ? 'Vote submitted — you can change it until votes are revealed.'
-                    : 'Votes are hidden until the moderator reveals them.'}
-                </p>
-              )}
             </div>
           )}
 
@@ -460,6 +554,23 @@ export default function RoomPage() {
 
         {/* Sidebar */}
         <aside className="room-sidebar">
+          {/* Invite section */}
+          <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 10px' }}>
+              Invite
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span className="room-code__label">Code</span>
+              <span className="room-code__value">{roomId}</span>
+              <button className="copy-btn" onClick={copyRoomCode} title="Copy Code">⧉</button>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn--secondary btn--sm" style={{ flex: 1 }} onClick={copyRoomLink}>
+                Copy Link
+              </button>
+            </div>
+          </div>
+
           {room && (
             <PlayerList
               players={room.players}
@@ -467,6 +578,7 @@ export default function RoomPage() {
               votes={room.votes as Record<string, any>}
               phase={room.phase}
               currentPlayerId={playerId ?? ''}
+              onKick={isModerator ? handleKick : undefined}
             />
           )}
 
@@ -474,21 +586,6 @@ export default function RoomPage() {
           {room && (room.stories?.length ?? 0) > 0 && (
             <StoryHistory stories={room.stories} />
           )}
-
-          {/* Invite section */}
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 10px' }}>
-              Invite
-            </p>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn--secondary btn--sm" style={{ flex: 1 }} onClick={copyRoomCode}>
-                Copy code
-              </button>
-              <button className="btn btn--secondary btn--sm" style={{ flex: 1 }} onClick={copyRoomLink}>
-                Copy link
-              </button>
-            </div>
-          </div>
         </aside>
       </div>
 
@@ -520,14 +617,14 @@ export default function RoomPage() {
                   checked={isSpectator}
                   onChange={(e) => setIsSpectator(e.target.checked)}
                 />
-                Join as spectator (observe only, no voting)
+                Join as spectator — watch only, spectators cannot vote
               </label>
               <button
                 type="submit"
                 className="btn btn--primary"
                 disabled={joiningModal || !joinNameInput.trim()}
               >
-                {joiningModal ? 'Joining…' : 'Join room'}
+                {joiningModal ? 'Joining…' : 'Join Room'}
               </button>
             </form>
           </div>
@@ -536,41 +633,32 @@ export default function RoomPage() {
 
       {/* First story modal */}
       {showFirstStoryModal && (
-        <div className="modal-overlay" onClick={() => setShowFirstStoryModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal">
             <h2 className="modal__title">Name your first story</h2>
-            <p className="modal__sub">What are you estimating? You can skip and add it later.</p>
+            <p className="modal__sub">What are you estimating? A story name is required to start voting.</p>
             <form onSubmit={handleFirstStorySubmit}>
               <div className="form-group">
-                <label className="form-label">Story / ticket title</label>
+                <label className="form-label">Story title</label>
                 <input
                   className="form-input"
                   type="text"
-                  placeholder="e.g. JIRA-101 User login"
+                  placeholder="e.g. JIRA-1234 User login"
                   value={firstStoryInput}
-                  onChange={(e) => setFirstStoryInput(e.target.value)}
+                  onChange={(e) => setFirstStoryInput(capFirst(e.target.value))}
                   maxLength={120}
                   autoFocus
+                  required
                 />
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button
-                  type="button"
-                  className="btn btn--secondary"
-                  style={{ flex: 1 }}
-                  onClick={() => setShowFirstStoryModal(false)}
-                >
-                  Skip
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn--new-round-submit"
-                  style={{ flex: 1 }}
-                  disabled={savingFirstStory || !firstStoryInput.trim()}
-                >
-                  {savingFirstStory ? 'Saving…' : 'Start voting'}
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="btn btn--new-round-submit"
+                style={{ width: '100%' }}
+                disabled={savingFirstStory || !firstStoryInput.trim()}
+              >
+                {savingFirstStory ? 'Saving…' : 'Start Voting'}
+              </button>
             </form>
           </div>
         </div>
@@ -581,16 +669,16 @@ export default function RoomPage() {
         <div className="modal-overlay" onClick={() => setShowNewRoundModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2 className="modal__title">Start new round</h2>
-            <p className="modal__sub">Optionally name the next story before voting begins.</p>
+            <p className="modal__sub">Name the next story to begin voting.</p>
             <form onSubmit={handleNewRoundSubmit}>
               <div className="form-group">
-                <label className="form-label">Story / ticket title</label>
+                <label className="form-label">Story title</label>
                 <input
                   className="form-input"
                   type="text"
                   placeholder={`Story ${(room?.storyCount ?? 0) + 1}`}
                   value={nextStoryInput}
-                  onChange={(e) => setNextStoryInput(e.target.value)}
+                  onChange={(e) => setNextStoryInput(capFirst(e.target.value))}
                   maxLength={120}
                   autoFocus
                 />
@@ -608,12 +696,34 @@ export default function RoomPage() {
                   type="submit"
                   className="btn btn--new-round-submit"
                   style={{ flex: 1 }}
-                  disabled={resetting}
+                  disabled={resetting || !nextStoryInput.trim()}
                 >
-                  {resetting ? 'Starting…' : 'Start round'}
+                  {resetting ? 'Starting…' : 'Start Round'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Leave confirmation */}
+      {showLeaveConfirm && (
+        <div className="modal-overlay" onClick={() => setShowLeaveConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 320 }}>
+            <h2 className="modal__title">Leave room?</h2>
+            <p className="modal__sub">
+              {isModerator
+                ? 'You are the moderator. Moderation will transfer to the next player.'
+                : 'Your vote will be removed from the current round.'}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn--secondary" style={{ flex: 1 }} onClick={() => setShowLeaveConfirm(false)}>
+                Cancel
+              </button>
+              <button className="btn btn--danger" style={{ flex: 1 }} onClick={handleLeave}>
+                Leave
+              </button>
+            </div>
           </div>
         </div>
       )}

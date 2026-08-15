@@ -46,6 +46,7 @@ export async function POST(
 
     room.phase = 'voting'
     room.currentStory = nextStory.trim()
+    room.timerEndsAt = null
     for (const pid of Object.keys(room.votes)) {
       room.votes[pid] = null
     }

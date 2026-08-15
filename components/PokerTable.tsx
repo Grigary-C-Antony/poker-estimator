@@ -33,13 +33,36 @@ export default function PokerTable({ players, votes, phase, currentPlayerId }: P
     return phase === 'voting' ? v === true : v !== null && v !== undefined
   }).length
 
+  const pct = voters.length > 0 ? votedCount / voters.length : 0
+  const r = 16
+  const circ = 2 * Math.PI * r
+  const dash = pct * circ
+
   return (
     <div className="poker-table">
       <div className="poker-table__header">
         <span className="poker-table__label">Table</span>
-        {phase === 'voting' && (
-          <span className="poker-table__progress-text">
-            {votedCount} of {voters.length} voted
+        {phase === 'voting' && voters.length > 0 && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="40" height="40" viewBox="0 0 40 40" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="20" cy="20" r={r} fill="none" stroke="var(--border)" strokeWidth="3" />
+              <circle
+                cx="20" cy="20" r={r} fill="none"
+                stroke={pct === 1 ? 'var(--success)' : 'var(--text-primary)'}
+                strokeWidth="3"
+                strokeDasharray={`${dash} ${circ}`}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dasharray 0.4s ease' }}
+              />
+              <text
+                x="20" y="20"
+                textAnchor="middle" dominantBaseline="central"
+                style={{ transform: 'rotate(90deg)', transformOrigin: '20px 20px', fontSize: 10, fontWeight: 700, fill: 'var(--text-primary)', fontFamily: 'inherit' }}
+              >
+                {votedCount}/{voters.length}
+              </text>
+            </svg>
+            <span className="poker-table__progress-text">{votedCount} of {voters.length} voted</span>
           </span>
         )}
         {phase === 'revealed' && (
@@ -48,15 +71,6 @@ export default function PokerTable({ players, votes, phase, currentPlayerId }: P
           </span>
         )}
       </div>
-
-      {phase === 'voting' && voters.length > 0 && (
-        <div className="poker-table__progress-bar">
-          <div
-            className="poker-table__progress-fill"
-            style={{ width: `${voters.length > 0 ? (votedCount / voters.length) * 100 : 0}%` }}
-          />
-        </div>
-      )}
 
       {voters.length === 0 ? (
         <p className="poker-table__empty">No players yet — share the room code to invite teammates.</p>

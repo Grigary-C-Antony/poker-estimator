@@ -25,6 +25,7 @@ export type Room = {
   votes: Record<string, CardValue | null>
   stories: StoryRecord[]
   storyCount: number
+  timerEndsAt: number | null
 }
 
 // What clients see during voting — votes are hidden, only presence indicated

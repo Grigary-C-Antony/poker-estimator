@@ -11,24 +11,24 @@ export async function POST(
     const room = await getRoom(id.toUpperCase())
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
-    const { playerId } = await req.json()
-    if (playerId !== room.moderatorId) {
-      return NextResponse.json({ error: 'Only the moderator can reset votes' }, { status: 403 })
+    const { moderatorId, targetId } = await req.json()
+    if (moderatorId !== room.moderatorId) {
+      return NextResponse.json({ error: 'Only the moderator can remove players' }, { status: 403 })
+    }
+    if (targetId === room.moderatorId) {
+      return NextResponse.json({ error: 'Moderator cannot remove themselves' }, { status: 400 })
     }
 
-    // Clear all votes, reset phase — keep same story and players
-    for (const pid of Object.keys(room.votes)) {
-      room.votes[pid] = null
-    }
-    room.phase = 'voting'
-    room.timerEndsAt = null
+    room.players = room.players.filter((p) => p.id !== targetId)
+    delete room.votes[targetId]
 
     await saveRoom(room)
     await safeTrigger(getRoomChannel(room.id), 'room-updated', { room: sanitizeRoom(room) })
+    await safeTrigger(getRoomChannel(room.id), 'player-kicked', { playerId: targetId })
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    console.error('[POST /api/rooms/[id]/revote]', err)
+    console.error('[POST /api/rooms/[id]/kick]', err)
     return NextResponse.json({ error: err.message ?? 'Internal server error' }, { status: 500 })
   }
 }

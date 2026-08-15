@@ -11,24 +11,20 @@ export async function POST(
     const room = await getRoom(id.toUpperCase())
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
-    const { playerId } = await req.json()
+    const { playerId, duration } = await req.json()
     if (playerId !== room.moderatorId) {
-      return NextResponse.json({ error: 'Only the moderator can reset votes' }, { status: 403 })
+      return NextResponse.json({ error: 'Only the moderator can control the timer' }, { status: 403 })
     }
 
-    // Clear all votes, reset phase — keep same story and players
-    for (const pid of Object.keys(room.votes)) {
-      room.votes[pid] = null
-    }
-    room.phase = 'voting'
-    room.timerEndsAt = null
+    // duration = 0 cancels, otherwise sets end timestamp
+    room.timerEndsAt = duration > 0 ? Date.now() + duration * 1000 : null
 
     await saveRoom(room)
     await safeTrigger(getRoomChannel(room.id), 'room-updated', { room: sanitizeRoom(room) })
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    console.error('[POST /api/rooms/[id]/revote]', err)
+    console.error('[POST /api/rooms/[id]/timer]', err)
     return NextResponse.json({ error: err.message ?? 'Internal server error' }, { status: 500 })
   }
 }

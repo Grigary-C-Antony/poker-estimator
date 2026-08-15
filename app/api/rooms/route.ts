@@ -4,13 +4,13 @@ import { safeTrigger, getRoomChannel } from '@/lib/pusher-server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { roomName, moderatorId, moderatorName } = await req.json()
+    const { roomName, moderatorId, moderatorName, isSpectator = false } = await req.json()
 
     if (!roomName?.trim() || !moderatorId || !moderatorName?.trim()) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
-    const room = await createRoom(roomName.trim(), moderatorId, moderatorName.trim())
+    const room = await createRoom(roomName.trim(), moderatorId, moderatorName.trim(), isSpectator)
     await safeTrigger(getRoomChannel(room.id), 'room-updated', { room: sanitizeRoom(room) })
 
     return NextResponse.json({ room: sanitizeRoom(room) })

@@ -50,7 +50,7 @@ function generateRoomId(): string {
   return id
 }
 
-export async function createRoom(name: string, moderatorId: string, moderatorName: string): Promise<Room> {
+export async function createRoom(name: string, moderatorId: string, moderatorName: string, isSpectator = false): Promise<Room> {
   let id = generateRoomId()
   while (await roomExists(id)) id = generateRoomId()
 
@@ -58,12 +58,13 @@ export async function createRoom(name: string, moderatorId: string, moderatorNam
     id,
     name,
     moderatorId,
-    players: [{ id: moderatorId, name: moderatorName, isSpectator: false }],
+    players: [{ id: moderatorId, name: moderatorName, isSpectator }],
     currentStory: '',
     phase: 'voting',
     votes: { [moderatorId]: null },
     stories: [],
     storyCount: 0,
+    timerEndsAt: null,
   }
 
   await saveRoom(room)

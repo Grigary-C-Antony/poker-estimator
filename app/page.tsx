@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import ThemeToggle from '@/components/ThemeToggle'
+import { getIdentity, saveIdentity } from '@/lib/identity'
 
 function generatePlayerId() {
   return crypto.randomUUID()
@@ -10,13 +12,23 @@ function generatePlayerId() {
 export default function HomePage() {
   const router = useRouter()
 
-  // Create room state
+  // Create Room state
   const [roomName, setRoomName] = useState('')
   const [creatorName, setCreatorName] = useState('')
+  const [creatorIsSpectator, setCreatorIsSpectator] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
-  // Join room state
+  // Pre-fill names from identity cookie
+  useEffect(() => {
+    const id = getIdentity()
+    if (id?.playerName) {
+      setCreatorName((prev) => prev || id.playerName)
+      setJoinName((prev) => prev || id.playerName)
+    }
+  }, [])
+
+  // Join Room state
   const [joinCode, setJoinCode] = useState('')
   const [joinName, setJoinName] = useState('')
   const [joining, setJoining] = useState(false)
@@ -37,16 +49,16 @@ export default function HomePage() {
           roomName: roomName.trim(),
           moderatorId,
           moderatorName: creatorName.trim(),
+          isSpectator: creatorIsSpectator,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((data as any).error ?? 'Failed to create room')
 
       const roomId = data.room.id
-      localStorage.setItem(
-        `poker_session_${roomId}`,
-        JSON.stringify({ playerId: moderatorId, playerName: creatorName.trim() })
-      )
+      const name = creatorName.trim()
+      localStorage.setItem(`poker_session_${roomId}`, JSON.stringify({ playerId: moderatorId, playerName: name }))
+      saveIdentity(moderatorId, name)
       router.push(`/room/${roomId}`)
     } catch (err: any) {
       setCreateError(err.message)
@@ -69,7 +81,8 @@ export default function HomePage() {
         throw new Error((d as any).error ?? 'Room not found')
       }
 
-      const playerId = generatePlayerId()
+      const identity = getIdentity()
+      const playerId = identity?.playerId ?? generatePlayerId()
       const res = await fetch(`/api/rooms/${code}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,10 +96,9 @@ export default function HomePage() {
       if (!res.ok) throw new Error((data as any).error ?? 'Failed to join')
 
       const roomId = data.room.id
-      localStorage.setItem(
-        `poker_session_${roomId}`,
-        JSON.stringify({ playerId, playerName: joinName.trim() })
-      )
+      const name = joinName.trim()
+      localStorage.setItem(`poker_session_${roomId}`, JSON.stringify({ playerId, playerName: name }))
+      saveIdentity(playerId, name)
       router.push(`/room/${roomId}`)
     } catch (err: any) {
       setJoinError(err.message)
@@ -101,6 +113,8 @@ export default function HomePage() {
           <div className="app-logo__icon">P</div>
           PointSprint
         </div>
+        <span style={{ flex: 1 }} />
+        <ThemeToggle />
       </header>
 
       <main className="home-page">
@@ -109,10 +123,10 @@ export default function HomePage() {
             {/* Decorative card fan */}
             <div className="hero-card-preview">
               <div className="preview-card">1</div>
-              <div className="preview-card">3</div>
-              <div className="preview-card preview-card--dark">5</div>
+              <div className="preview-card">2</div>
+              <div className="preview-card preview-card--dark">3</div>
+              <div className="preview-card">5</div>
               <div className="preview-card">8</div>
-              <div className="preview-card">13</div>
             </div>
             <h1 className="home-hero__title">Planning poker, simplified.</h1>
             <p className="home-hero__sub">
@@ -127,7 +141,7 @@ export default function HomePage() {
           </div>
 
           <div className="home-grid">
-            {/* Create room */}
+            {/* Create Room */}
             <div className="home-panel">
               <p className="home-panel__eyebrow">New session</p>
               <h2 className="home-panel__title">Create a room</h2>
@@ -156,6 +170,14 @@ export default function HomePage() {
                     required
                   />
                 </div>
+                <label className="spectator-toggle">
+                  <input
+                    type="checkbox"
+                    checked={creatorIsSpectator}
+                    onChange={(e) => setCreatorIsSpectator(e.target.checked)}
+                  />
+                  Join as spectator (observe only, no voting)
+                </label>
                 {createError && (
                   <p style={{ color: 'var(--error)', fontSize: 12, margin: '0 0 12px' }}>
                     {createError}
@@ -166,12 +188,12 @@ export default function HomePage() {
                   className="btn btn--primary"
                   disabled={creating || !roomName.trim() || !creatorName.trim()}
                 >
-                  {creating ? 'Creating…' : 'Create room'}
+                  {creating ? 'Creating…' : 'Create Room'}
                 </button>
               </form>
             </div>
 
-            {/* Join room */}
+            {/* Join Room */}
             <div className="home-panel">
               <p className="home-panel__eyebrow">Existing session</p>
               <h2 className="home-panel__title">Join a room</h2>
@@ -210,7 +232,7 @@ export default function HomePage() {
                   className="btn btn--primary"
                   disabled={joining || joinCode.length !== 6 || !joinName.trim()}
                 >
-                  {joining ? 'Joining…' : 'Join room'}
+                  {joining ? 'Joining…' : 'Join Room'}
                 </button>
               </form>
             </div>
